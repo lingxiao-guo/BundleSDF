@@ -1691,7 +1691,7 @@ class NerfRunner:
     print(f"Texture image stats before interpolation: min={tex_image.min()}, max={tex_image.max()}, mean={tex_image.mean()}, std={tex_image.std()}")
     print("Increase the scale factor if the texture is too dark.")
 
-    scale_factor = 1  # Adjust this factor to control brightness (e.g. 2)
+    scale_factor = 1.5  # Adjust this factor to control brightness (e.g. 2)
     tex_image = tex_image * scale_factor
 
     # Interpolation for missing vertices (after normalization)
@@ -1699,7 +1699,14 @@ class NerfRunner:
     tex_image = tex_image.detach().cpu().numpy()
     missing_mask = missing_mask.detach().cpu().numpy()
     if missing_mask.any():
-        tex_image = self.interpolate_missing_texels_uv(tex_image, missing_mask)
+        outer_mask = self.build_outer_texel_mask(mesh, tex_image.shape[:2])
+        if outer_mask is not None:
+            tex_image = self.fill_missing_outer_texels(
+                tex_image, missing_mask, outer_mask
+            )
+            missing_mask = missing_mask & ~outer_mask
+        if missing_mask.any():
+            tex_image = self.interpolate_missing_texels_uv(tex_image, missing_mask)
 
     # Convert to uint8 and apply final clipping
     tex_image = np.clip(tex_image, 0, 255).astype(np.uint8)
@@ -1727,6 +1734,73 @@ class NerfRunner:
     nearest_y = indices[0]
     nearest_x = indices[1]
     tex_image[missing_mask] = tex_image[nearest_y[missing_mask], nearest_x[missing_mask]]
+    return tex_image
+
+
+  def build_outer_texel_mask(self, mesh, tex_shape):
+    """
+    Build a mask of texels that belong to outward-facing faces.
+    """
+    if mesh.faces is None or mesh.visual.uv is None:
+        return None
+    if len(mesh.faces) == 0:
+        return None
+    normals = mesh.face_normals
+    if normals is None or len(normals) == 0:
+        return None
+
+    H, W = tex_shape
+    center = mesh.vertices.mean(axis=0)
+    tri = mesh.vertices[mesh.faces]
+    centers = tri.mean(axis=1)
+    outward = (normals * (centers - center)).sum(axis=1) > 0
+    return self.rasterize_face_mask(mesh, (H, W), outward)
+
+
+  def rasterize_face_mask(self, mesh, tex_shape, face_mask):
+    """
+    Rasterize selected faces into a UV-space texel mask.
+    """
+    H, W = tex_shape
+    mask = np.zeros((H, W), dtype=np.uint8)
+    uvs = mesh.visual.uv
+    uvs_tex = uvs * np.array([W - 1, H - 1], dtype=np.float32).reshape(1, 2)
+    for face_idx, face in enumerate(mesh.faces):
+        if not face_mask[face_idx]:
+            continue
+        pts = np.round(uvs_tex[face]).astype(np.int32)
+        pts[:, 0] = np.clip(pts[:, 0], 0, W - 1)
+        pts[:, 1] = np.clip(pts[:, 1], 0, H - 1)
+        cv2.fillConvexPoly(mask, pts, 1)
+    return mask.astype(bool)
+
+
+  def fill_missing_outer_texels(self, tex_image, missing_mask, outer_mask):
+    """
+    Fill missing outer texels using a dominant outer color with a distance-based gradient.
+    """
+    from scipy import ndimage
+
+    missing_outer = missing_mask & outer_mask
+    if not missing_outer.any():
+        return tex_image
+
+    valid_outer = (~missing_mask) & outer_mask
+    if not valid_outer.any():
+        return tex_image
+
+    dominant = np.median(tex_image[valid_outer], axis=0)
+
+    dt_input = np.ones(missing_mask.shape, dtype=np.uint8)
+    dt_input[valid_outer] = 0
+    dist, indices = ndimage.distance_transform_edt(dt_input, return_indices=True)
+    nearest = tex_image[indices[0], indices[1]]
+
+    d = dist[missing_outer]
+    scale = np.percentile(d, 90)
+    scale = max(scale, 1.0)
+    t = np.clip(d / (scale + 1e-6), 0.0, 1.0).reshape(-1, 1)
+    tex_image[missing_outer] = (1.0 - t) * nearest[missing_outer] + t * dominant
     return tex_image
 
 

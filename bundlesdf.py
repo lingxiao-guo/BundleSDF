@@ -26,7 +26,6 @@ from Utils import *
 from nerf_runner import *
 from tool import *
 import my_cpp
-from gui import *
 from BundleTrack.scripts.data_reader import *
 from Utils import *
 from loftr_wrapper import LoftrRunner
@@ -39,6 +38,15 @@ except:
 
 
 def run_gui(gui_dict, gui_lock):
+    try:
+        import dearpygui.dearpygui as dpg
+        from gui import BundleSdfGui
+    except Exception as exc:
+        raise RuntimeError(
+            "GUI requested but dearpygui failed to import. "
+            "Run with --use_gui 0 or install a dearpygui build compatible with your glibc."
+        ) from exc
+
     print("GUI started")
     with gui_lock:
         gui = BundleSdfGui(img_height=200)

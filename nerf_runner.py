@@ -1685,6 +1685,7 @@ class NerfRunner:
 
     # Normalize texture image by accumulated weights
     tex_image = tex_image / safe_weight_tex_image[..., None]
+    tex_image = torch.nan_to_num(tex_image, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Print tex image stats.
     print(f"Texture image stats before interpolation: min={tex_image.min()}, max={tex_image.max()}, mean={tex_image.mean()}, std={tex_image.std()}")
@@ -1695,13 +1696,12 @@ class NerfRunner:
 
     # Interpolation for missing vertices (after normalization)
     missing_mask = weight_tex_image == 0
+    tex_image = tex_image.detach().cpu().numpy()
+    missing_mask = missing_mask.detach().cpu().numpy()
     if missing_mask.any():
-        # tex_image = self.interpolate_missing_vertices(tex_image, missing_mask)
-        tex_image = self.interpolate_missing_vertices_nn_3d(mesh, tex_image, weight_tex_image, uvs_tex, vertices_cuda)
+        tex_image = self.interpolate_missing_texels_uv(tex_image, missing_mask)
 
-    # Convert to numpy and apply final clipping
-    tex_image = tex_image.data.cpu().numpy()
-    tex_image = np.nan_to_num(tex_image, nan=0.0)  # Replace NaNs with 0
+    # Convert to uint8 and apply final clipping
     tex_image = np.clip(tex_image, 0, 255).astype(np.uint8)
     tex_image = tex_image[::-1].copy()  # Flip vertically if necessary
 
@@ -1712,64 +1712,21 @@ class NerfRunner:
     
     return mesh
   
-  def interpolate_missing_vertices_nn_3d(self, mesh, tex_image, weight_tex_image, uvs_tex, vertices_cuda, batch_size=5000):
+  def interpolate_missing_texels_uv(self, tex_image, missing_mask):
     """
-    Perform nearest-neighbor interpolation in 3D space to fill in missing texture values, with batching to avoid memory overflow.
-    
-    Args:
-        mesh: The 3D mesh object.
-        tex_image: The texture image (with missing values).
-        weight_tex_image: A map indicating which pixels have valid color values.
-        uvs_tex: The UV coordinates for the mesh vertices.
-        vertices_cuda: The 3D vertices of the mesh in CUDA tensor format.
-        batch_size: The size of batches for processing missing UVs to avoid memory overload.
-    
-    Returns:
-        tex_image: The texture image with missing values filled using nearest-neighbor interpolation.
+    Fill missing texture pixels by copying the nearest valid texel in UV space.
     """
-    from scipy.spatial import KDTree
+    from scipy import ndimage
 
-    # Identify the missing pixels in the texture image
-    missing_mask = weight_tex_image == 0
+    if not missing_mask.any():
+        return tex_image
+    if (~missing_mask).sum() == 0:
+        return tex_image
 
-    # Move UV and vertex data to CPU if necessary
-    if isinstance(uvs_tex, torch.Tensor):
-        uvs_tex = uvs_tex.cpu().detach().numpy()
-    if isinstance(vertices_cuda, torch.Tensor):
-        vertices_cuda = vertices_cuda.cpu().detach().numpy()
-
-    # Map UV coordinates to texture resolution (integers)
-    uvs = (uvs_tex * np.array([tex_image.shape[1] - 1, tex_image.shape[0] - 1])).astype(int)
-
-    # Extract valid pixel locations in the texture image based on weight_tex_image
-    valid_mask = weight_tex_image > 0
-    valid_uvs = np.argwhere(valid_mask.cpu().detach().numpy())  # Get valid UV coordinates in texture space
-
-    # Map valid UVs to corresponding 3D vertices
-    valid_vertices = vertices_cuda[valid_uvs[:, 1]]  # Use second dimension since uvs_tex corresponds to vertices
-
-    # Build KDTree for valid vertices in 3D space
-    kd_tree = KDTree(valid_vertices)
-
-    # Get all missing UV coordinates
-    missing_uvs = np.argwhere(missing_mask.cpu().detach().numpy())
-
-    # Process missing pixels in batches to avoid memory overload
-    for i in tqdm(range(0, len(missing_uvs), batch_size), desc='Interpolating missing vertices'):
-        batch_missing_uvs = missing_uvs[i:i+batch_size]
-
-        # Map UV coordinates to 3D space using the mesh vertices
-        batch_missing_uvs_3d = vertices_cuda[
-          np.argmin(np.linalg.norm(uvs[:, None, :] - batch_missing_uvs[None, :, :], axis=2), axis=0)
-        ]
-
-        # Perform a batch query for nearest neighbors in 3D space
-        _, nearest_indices = kd_tree.query(batch_missing_uvs_3d)
-
-        # Assign colors for all missing pixels in the current batch
-        nearest_colors = tex_image[valid_uvs[nearest_indices][:, 0], valid_uvs[nearest_indices][:, 1]]
-        tex_image[batch_missing_uvs[:, 0], batch_missing_uvs[:, 1]] = nearest_colors
-
+    _, indices = ndimage.distance_transform_edt(missing_mask, return_indices=True)
+    nearest_y = indices[0]
+    nearest_x = indices[1]
+    tex_image[missing_mask] = tex_image[nearest_y[missing_mask], nearest_x[missing_mask]]
     return tex_image
 
 
@@ -1917,6 +1874,3 @@ class NerfRunner:
     )
 
     return uvs
-
-
-

@@ -37,14 +37,16 @@ add_definitions(-DCUDA_RANSAC=1)
 add_definitions(-DCUDA_MATCHING=1)
 # add_definitions(-DDEBUG=1)
 
-# Add PCL installation path to CMAKE_PREFIX_PATH using a relative path
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${PROJECT_SOURCE_DIR}/../local")
-
-# Set PCL_DIR explicitly if CMake can't find it automatically, using a relative path
-set(PCL_DIR "${PROJECT_SOURCE_DIR}/../local/share/pcl-1.10")
+# Prefer a local PCL install if present, otherwise fall back to system locations.
+set(LOCAL_PCL_PREFIX "${PROJECT_SOURCE_DIR}/../local")
+set(LOCAL_PCL_DIR "${LOCAL_PCL_PREFIX}/share/pcl-1.10")
+if (EXISTS "${LOCAL_PCL_DIR}")
+  list(APPEND CMAKE_PREFIX_PATH "${LOCAL_PCL_PREFIX}")
+  set(PCL_DIR "${LOCAL_PCL_DIR}")
+endif ()
 
 find_package(Boost REQUIRED COMPONENTS system program_options serialization)
-find_package(PCL REQUIRED PATHS ${CMAKE_PREFIX_PATH} NO_DEFAULT_PATH)
+find_package(PCL REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(OpenMP REQUIRED)

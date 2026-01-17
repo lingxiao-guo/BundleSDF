@@ -13,7 +13,7 @@ segmentation:
   tolerance: 0.03
 
 depth_processing:
-  zfar: 1.0
+  zfar: 2.0 # 1.0
   erode:
     radius: 1
     diff: 0.001

@@ -36,7 +36,6 @@ def run_one_video(
         open(f"{code_dir_run_custom}/BundleTrack/config_ho3d.yml", "r")
     )
     cfg_bundletrack["SPDLOG"] = debug_level  # Higher means more logging
-    cfg_bundletrack["depth_processing"]["zfar"] = 1
     cfg_bundletrack["depth_processing"]["percentile"] = 95
     cfg_bundletrack["erode_mask"] = 3
     cfg_bundletrack["debug_dir"] = out_folder + "/"
@@ -110,6 +109,14 @@ def run_one_video(
                 (cfg_bundletrack["erode_mask"], cfg_bundletrack["erode_mask"]), np.uint8
             )
             mask = cv2.erode(mask.astype(np.uint8), kernel)
+        # Skip frames that would produce an empty point cloud after depth/mask filtering.
+        zfar = cfg_bundletrack["depth_processing"].get("zfar", np.inf)
+        valid = (depth >= 0.1) & (depth <= zfar) & (mask > 0)
+        if valid.sum() == 0:
+            print(
+                f"[run_custom.py] skip frame {reader.id_strs[i]}: empty masked depth (zfar={zfar})"
+            )
+            continue
         id_str = reader.id_strs[i]
         pose_in_model = np.eye(4)
         K = reader.K.copy()
@@ -273,7 +280,6 @@ if __name__ == "__main__":
         help="If specified, interpolate missing vertices in the mesh.",
     )
     args = parser.parse_args()
-    assert not args.interpolate_missing_vertices, f"value is {args.interpolate_missing_vertices}"
     if args.mode == "run_video":
         run_one_video(
             video_dir=args.video_dir,
@@ -285,6 +291,7 @@ if __name__ == "__main__":
         )
     elif args.mode == "global_refine":
         run_one_video_global_nerf(
+            video_dir=args.video_dir,
             out_folder=args.out_folder,
             interpolate_missing_vertices=args.interpolate_missing_vertices,
         )

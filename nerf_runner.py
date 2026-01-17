@@ -1695,9 +1695,15 @@ class NerfRunner:
     tex_image = tex_image * scale_factor
 
     # Interpolation for missing vertices (after normalization)
-    missing_mask = weight_tex_image == 0
     tex_image = tex_image.detach().cpu().numpy()
-    missing_mask = missing_mask.detach().cpu().numpy()
+    weight_np = weight_tex_image.detach().cpu().numpy()
+    weight_vals = weight_np[weight_np > 0]
+    if weight_vals.size > 0:
+        weight_threshold = max(3, int(np.percentile(weight_vals, 10)))
+    else:
+        weight_threshold = 3
+    print(f"Texture fill weight threshold: {weight_threshold}")
+    missing_mask = weight_np < weight_threshold
     if missing_mask.any():
         outer_mask = self.build_outer_texel_mask(mesh, tex_image.shape[:2])
         if outer_mask is not None:
@@ -1705,6 +1711,13 @@ class NerfRunner:
                 tex_image, missing_mask, outer_mask
             )
             missing_mask = missing_mask & ~outer_mask
+        if missing_mask.any():
+            inner_mask = self.build_inner_texel_mask(mesh, tex_image.shape[:2])
+            if inner_mask is not None:
+                tex_image = self.fill_missing_inner_texels(
+                    tex_image, missing_mask, inner_mask
+                )
+                missing_mask = missing_mask & ~inner_mask
         if missing_mask.any():
             tex_image = self.interpolate_missing_texels_uv(tex_image, missing_mask)
 
@@ -1757,6 +1770,26 @@ class NerfRunner:
     return self.rasterize_face_mask(mesh, (H, W), outward)
 
 
+  def build_inner_texel_mask(self, mesh, tex_shape):
+    """
+    Build a mask of texels that belong to inward-facing faces.
+    """
+    if mesh.faces is None or mesh.visual.uv is None:
+        return None
+    if len(mesh.faces) == 0:
+        return None
+    normals = mesh.face_normals
+    if normals is None or len(normals) == 0:
+        return None
+
+    H, W = tex_shape
+    center = mesh.vertices.mean(axis=0)
+    tri = mesh.vertices[mesh.faces]
+    centers = tri.mean(axis=1)
+    inward = (normals * (centers - center)).sum(axis=1) < 0
+    return self.rasterize_face_mask(mesh, (H, W), inward)
+
+
   def rasterize_face_mask(self, mesh, tex_shape, face_mask):
     """
     Rasterize selected faces into a UV-space texel mask.
@@ -1801,6 +1834,35 @@ class NerfRunner:
     scale = max(scale, 1.0)
     t = np.clip(d / (scale + 1e-6), 0.0, 1.0).reshape(-1, 1)
     tex_image[missing_outer] = (1.0 - t) * nearest[missing_outer] + t * dominant
+    return tex_image
+
+
+  def fill_missing_inner_texels(self, tex_image, missing_mask, inner_mask):
+    """
+    Fill missing inner texels using a dominant inner color with a distance-based gradient.
+    """
+    from scipy import ndimage
+
+    missing_inner = missing_mask & inner_mask
+    if not missing_inner.any():
+        return tex_image
+
+    valid_inner = (~missing_mask) & inner_mask
+    if not valid_inner.any():
+        return tex_image
+
+    dominant = np.median(tex_image[valid_inner], axis=0)
+
+    dt_input = np.ones(missing_mask.shape, dtype=np.uint8)
+    dt_input[valid_inner] = 0
+    dist, indices = ndimage.distance_transform_edt(dt_input, return_indices=True)
+    nearest = tex_image[indices[0], indices[1]]
+
+    d = dist[missing_inner]
+    scale = np.percentile(d, 90)
+    scale = max(scale, 1.0)
+    t = np.clip(d / (scale + 1e-6), 0.0, 1.0).reshape(-1, 1)
+    tex_image[missing_inner] = (1.0 - t) * nearest[missing_inner] + t * dominant
     return tex_image
 
 

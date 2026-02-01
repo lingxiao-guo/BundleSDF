@@ -113,6 +113,8 @@ class NerfRunner:
     set_seed(0)
     self.cfg = cfg
     self.cfg['tv_loss_weight'] = eval(str(self.cfg['tv_loss_weight']))
+    self.ckpt_dir = self.cfg.get('ckpt_dir', self.cfg['save_dir'])
+    os.makedirs(self.ckpt_dir, exist_ok=True)
     self._run = _run
     self.images = images
     self.depths = depths
@@ -765,7 +767,7 @@ class NerfRunner:
       self.schedule_lr()
 
     if self.global_step%self.cfg['i_weights']==0 and self.global_step>0:
-      self.save_weights(out_file=os.path.join(self.cfg['save_dir'], f'model_latest.pth'), models=self.models)
+      self.save_weights(out_file=os.path.join(self.ckpt_dir, 'model_latest.pth'), models=self.models)
 
     if self.global_step % self.cfg['i_img'] == 0 and self.global_step>0:
       ids = torch.unique(self.rays[:, self.ray_frame_id_slice]).data.cpu().numpy().astype(int).tolist()
@@ -1691,7 +1693,7 @@ class NerfRunner:
     print(f"Texture image stats before interpolation: min={tex_image.min()}, max={tex_image.max()}, mean={tex_image.mean()}, std={tex_image.std()}")
     print("Increase the scale factor if the texture is too dark.")
 
-    scale_factor = 1.5  # Adjust this factor to control brightness (e.g. 2)
+    scale_factor = 1.  # Adjust this factor to control brightness (e.g. 2)
     tex_image = tex_image * scale_factor
 
     # Interpolation for missing vertices (after normalization)

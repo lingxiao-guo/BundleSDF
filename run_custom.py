@@ -71,6 +71,8 @@ def run_one_video(
     cfg_nerf["notes"] = ""
     cfg_nerf["expname"] = "nerf_with_bundletrack_online"
     cfg_nerf["save_dir"] = cfg_nerf["datadir"]
+    cfg_nerf["ckpt_dir"] = f"{out_folder}/ckpt/nerf_sdf"
+    cfg_nerf["i_weights"] = cfg_nerf["n_step"]
     cfg_nerf_dir = f"{out_folder}/config_nerf.yml"
     yaml.dump(cfg_nerf, open(cfg_nerf_dir, "w"))
     if use_segmenter:
@@ -110,8 +112,18 @@ def run_one_video(
             )
             mask = cv2.erode(mask.astype(np.uint8), kernel)
         # Skip frames that would produce an empty point cloud after depth/mask filtering.
+        znear = 0.05
         zfar = cfg_bundletrack["depth_processing"].get("zfar", np.inf)
-        valid = (depth >= 0.1) & (depth <= zfar) & (mask > 0)
+        # Heuristic: if most masked pixels are too close, skip the frame to avoid tracking failures.
+        masked = mask > 0
+        if masked.sum() > 0:
+            too_close = (depth > 0) & (depth < znear) & masked
+            if too_close.sum() / masked.sum() > 0.5:
+                print(
+                    f"[run_custom.py] skip frame {reader.id_strs[i]}: too-close depth (znear={znear})"
+                )
+                continue
+        valid = (depth >= znear) & (depth <= zfar) & masked
         if valid.sum() == 0:
             print(
                 f"[run_custom.py] skip frame {reader.id_strs[i]}: empty masked depth (zfar={zfar})"
@@ -165,8 +177,10 @@ def run_one_video_global_nerf(
     cfg_nerf["i_mesh"] = cfg_nerf["i_img"]
     cfg_nerf["i_nerf_normals"] = cfg_nerf["i_img"]
     cfg_nerf["i_save_ray"] = cfg_nerf["i_img"]
+    cfg_nerf["i_weights"] = cfg_nerf["n_step"]
     cfg_nerf["datadir"] = f"{out_folder}/nerf_with_bundletrack_online"
     cfg_nerf["save_dir"] = copy.deepcopy(cfg_nerf["datadir"])
+    cfg_nerf["ckpt_dir"] = f"{out_folder}/ckpt/nerf_sdf"
     os.makedirs(cfg_nerf["datadir"], exist_ok=True)
     cfg_nerf_dir = f"{cfg_nerf['datadir']}/config.yml"
     yaml.dump(cfg_nerf, open(cfg_nerf_dir, "w"))

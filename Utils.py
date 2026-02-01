@@ -217,7 +217,7 @@ def toOpen3dCloud(points,colors=None,normals=None):
 
 
 def depth2xyzmap(depth, K):
-  invalid_mask = (depth<0.1)
+  invalid_mask = (depth<0.05)
   H,W = depth.shape[:2]
   vs,us = np.meshgrid(np.arange(0,H),np.arange(0,W), sparse=False, indexing='ij')
   vs = vs.reshape(-1)

@@ -34,7 +34,7 @@ gradient_pose_max_norm: 0.1
 # logging/saving options
 i_print: 999999
 i_img: 999999
-i_weights: 999999
+i_weights: 500
 i_mesh: 999999
 i_nerf_normals: 999999
 i_save_ray: 999999

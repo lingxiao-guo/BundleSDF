@@ -138,6 +138,7 @@ dmypy.json
 
 # Datasets
 data/
+outputs/
 logs/
 !BundleTrack/XMem/inference/data
 run_used.yml

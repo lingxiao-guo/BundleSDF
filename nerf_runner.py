@@ -1462,7 +1462,7 @@ class NerfRunner:
       cvcam_in_ob = tf[i]@np.linalg.inv(glcam_in_cvcam)
       _, depth = renderer.render([np.linalg.inv(cvcam_in_ob)])
       xyz_map = depth2xyzmap(depth, self.K)
-      valid = (depth>=0.1*self.cfg['sc_factor']) & (self.masks[i].reshape(self.H,self.W).astype(bool))
+      valid = (depth>=0.01*self.cfg['sc_factor']) & (self.masks[i].reshape(self.H,self.W).astype(bool))
       pts = xyz_map[valid].reshape(-1,3)
       pts = transform_pts(pts, cvcam_in_ob)
       kdtree = cKDTree(pts)
@@ -1516,7 +1516,7 @@ class NerfRunner:
       _, render_depth = renderer.render([np.linalg.inv(cvcam_in_ob)])
       xyz_map = depth2xyzmap(render_depth, self.K)
       mask = self.masks[i].reshape(self.H,self.W).astype(bool)
-      valid = (render_depth.reshape(self.H,self.W)>=0.1*self.cfg['sc_factor']) & (mask)
+      valid = (render_depth.reshape(self.H,self.W)>=0.01*self.cfg['sc_factor']) & (mask)
       if valid.sum()==0:
         continue
       pts = xyz_map[valid].reshape(-1,3)
@@ -1594,7 +1594,7 @@ class NerfRunner:
 
       mask = self.masks[i].reshape(self.H,self.W).astype(bool)
       # Filter depth values that are too close to the camera.
-      valid = (render_depth.reshape(self.H,self.W)>=0.1*self.cfg['sc_factor']) & (mask)
+      valid = (render_depth.reshape(self.H,self.W)>=0.01*self.cfg['sc_factor']) & (mask)
       if valid.sum()==0:
         continue
 

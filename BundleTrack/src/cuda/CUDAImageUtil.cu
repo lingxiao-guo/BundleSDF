@@ -378,7 +378,7 @@ __global__ void convertDepthFloatToCameraSpaceFloat4_Kernel(float4* d_output, co
 
 		float depth = d_input[y*width + x];
 
-		if (depth >= 0.1)
+		if (depth >= 0.01)
 		{
 			float4 cameraSpace(intrinsicsInv*make_float4((float)x*depth, (float)y*depth, depth, depth));
 			d_output[y*width + x] = make_float4(cameraSpace.x, cameraSpace.y, cameraSpace.w, 1.0f);
@@ -434,20 +434,20 @@ __global__ void computeNormals_Kernel(float4* d_output, const float4* d_input, u
 		const float4 MC = d_input[(y - 1)*width + (x + 0)];
 		const float4 CM = d_input[(y + 0)*width + (x - 1)];
 
-		if (CC.z<0.1) return;
+		if (CC.z<0.01) return;
 
 		float3 x_dir = make_float3(0,0,0);
 		float3 y_dir = make_float3(0,0,0);
 
-		if (PC.z>=0.1 && MC.z>=0.1 && abs(PC.z-CC.z)<=z_diff_thres && abs(MC.z-CC.z)<=z_diff_thres)
+		if (PC.z>=0.01 && MC.z>=0.01 && abs(PC.z-CC.z)<=z_diff_thres && abs(MC.z-CC.z)<=z_diff_thres)
 		{
 			x_dir = make_float3(PC)-make_float3(MC);
 		}
-		else if (PC.z>=0.1 && abs(PC.z-CC.z)<=z_diff_thres)
+		else if (PC.z>=0.01 && abs(PC.z-CC.z)<=z_diff_thres)
 		{
 			x_dir = make_float3(PC)-make_float3(CC);
 		}
-		else if (MC.z>=0.1 && abs(MC.z-CC.z)<=z_diff_thres)
+		else if (MC.z>=0.01 && abs(MC.z-CC.z)<=z_diff_thres)
 		{
 			x_dir = make_float3(MC)-make_float3(CC);
 		}
@@ -456,15 +456,15 @@ __global__ void computeNormals_Kernel(float4* d_output, const float4* d_input, u
 			return;
 		}
 
-		if (CP.z>=0.1 && CM.z>=0.1 && abs(CP.z-CC.z)<=z_diff_thres && abs(CM.z-CC.z)<=z_diff_thres)
+		if (CP.z>=0.01 && CM.z>=0.01 && abs(CP.z-CC.z)<=z_diff_thres && abs(CM.z-CC.z)<=z_diff_thres)
 		{
 			y_dir = make_float3(CP-CM);
 		}
-		else if (CP.z>=0.1 && abs(CP.z-CC.z)<=z_diff_thres)
+		else if (CP.z>=0.01 && abs(CP.z-CC.z)<=z_diff_thres)
 		{
 			y_dir = make_float3(CP-CC);
 		}
-		else if (CM.z>=0.1 && abs(CM.z-CC.z)<=z_diff_thres)
+		else if (CM.z>=0.01 && abs(CM.z-CC.z)<=z_diff_thres)
 		{
 			y_dir = make_float3(CM-CC);
 		}
@@ -768,7 +768,7 @@ __global__ void erodeDepthMapDevice(float* d_output, float* d_input, int structu
 		unsigned int count = 0;
 
 		float oldDepth = d_input[y*width + x];
-		if (oldDepth<=0.1f || oldDepth>zfar)
+		if (oldDepth<=0.01f || oldDepth>zfar)
 		{
 			d_output[y*width + x] = 0;
 			return;
@@ -780,7 +780,7 @@ __global__ void erodeDepthMapDevice(float* d_output, float* d_input, int structu
 				if (x + j >= 0 && x + j < width && y + i >= 0 && y + i < height)
 				{
 					float depth = d_input[(y + i)*width + (x + j)];
-					if (depth == MINF || depth < 0.1f || fabs(depth - oldDepth) > dThresh)
+					if (depth == MINF || depth < 0.01f || fabs(depth - oldDepth) > dThresh)
 					{
 						count++;
 						//d_output[y*width+x] = MINF;
@@ -847,7 +847,7 @@ __global__ void gaussFilterDepthMapDevice(float* d_output, const float* d_input,
 			{
 				const float currentDepth = d_input[n*width + m];
 
-				if (currentDepth>=0.1f && currentDepth<=zfar)
+				if (currentDepth>=0.01f && currentDepth<=zfar)
 				{
 					num_valid++;
 					mean_depth += currentDepth;
@@ -869,7 +869,7 @@ __global__ void gaussFilterDepthMapDevice(float* d_output, const float* d_input,
 			{
 				const float currentDepth = d_input[n*width + m];
 
-				if (currentDepth>=0.1f && currentDepth<=zfar && abs(currentDepth-mean_depth)<0.01)
+				if (currentDepth>=0.01f && currentDepth<=zfar && abs(currentDepth-mean_depth)<0.01)
 				{
 					const float weight = exp( -((m-x)*(m-x) + (y-n)*(y-n)) / (2.0f*sigmaD*sigmaD) - (depthCenter-currentDepth)*(depthCenter-currentDepth)/(2*sigmaR*sigmaR) );
 
@@ -1072,7 +1072,7 @@ __global__ void filterDepthSmoothedEdgesDevice(float* d_output, const float* d_i
 
 	const int pos = v*width+u;
 	float Z = d_input[pos];
-	if (Z<0.1) return;
+	if (Z<0.01) return;
 
 	float X = (u-cx)*Z/fx;
 	float Y = (v-cy)*Z/fy;
@@ -1114,7 +1114,7 @@ __global__ void countNumValidDepth_Kernel(int *d_cnt, const float* d_input, cons
 
 	if (w >= width || h >= height) return;
 
-	if (d_input[h*width+w]>=0.1)
+	if (d_input[h*width+w]>=0.01)
 	{
 		atomicAdd(d_cnt, 1);
 	}
@@ -1142,7 +1142,7 @@ __global__ void computeCovisibilityKernel(const int H, const int W, const int st
 	const int i_pix = h*W+w;
 
 	float4 ptA = xyz_mapA[i_pix];
-	if (ptA.z<0.1) return;
+	if (ptA.z<0.01) return;
 	float4 normalA_tmp = normalA[i_pix];
 	if (normalA_tmp.x==0 && normalA_tmp.y==0 && normalA_tmp.z==0) return;
 

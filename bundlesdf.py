@@ -733,7 +733,7 @@ class BundleSdf:
         percentile = self.cfg_track["depth_processing"]["percentile"]
         if percentile < 100:  # Denoise
             logging.info("percentile denoise start")
-            valid = (depth >= 0.05) & (mask > 0)
+            valid = (depth >= 0.01) & (mask > 0)
             thres = np.percentile(depth[valid], percentile)
             depth[depth >= thres] = 0
             logging.info("percentile denoise done")

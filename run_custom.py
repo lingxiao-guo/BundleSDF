@@ -112,7 +112,7 @@ def run_one_video(
             )
             mask = cv2.erode(mask.astype(np.uint8), kernel)
         # Skip frames that would produce an empty point cloud after depth/mask filtering.
-        znear = 0.05
+        znear = 0.01
         zfar = cfg_bundletrack["depth_processing"].get("zfar", np.inf)
         # Heuristic: if most masked pixels are too close, skip the frame to avoid tracking failures.
         masked = mask > 0

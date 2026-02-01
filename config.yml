@@ -60,7 +60,7 @@ farthest_pose_sampling: 0    # Sampling train images. This replace uniform skip
 use_mask: 1
 dilate_mask_size: 0
 rays_valid_depth_only: true
-near: 0.1
+near: 0.01
 far: 2
 rgb_weight: 10
 depth_weight: 0

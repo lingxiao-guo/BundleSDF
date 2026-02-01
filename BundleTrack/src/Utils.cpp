@@ -123,7 +123,7 @@ void convert3dOrganizedRGB(cv::Mat &objDepth, cv::Mat &colImage, Eigen::Matrix3f
     {
       float depth = objDepth.at<float>(u, v);
       cv::Vec3b colour = colImage.at<cv::Vec3b>(u, v); // 3*8 bits
-      if (depth > 0.1 && depth < 2.0)
+      if (depth > 0.01 && depth < 2.0)
       {
         (*objCloud)(v, u).x = (float)((v - camIntrinsic(0, 2)) * depth / camIntrinsic(0, 0));
         (*objCloud)(v, u).y = (float)((u - camIntrinsic(1, 2)) * depth / camIntrinsic(1, 1));
@@ -444,4 +444,3 @@ void getRotateImageTransform(int H, int W, float rot, Eigen::Matrix3f &forward_t
 
 
 } // namespace Utils
-

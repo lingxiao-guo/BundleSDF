@@ -205,7 +205,7 @@ class BundleSdfTracking(BundleSdf):
         percentile = self.cfg_track["depth_processing"]["percentile"]
         if percentile < 100:
             logging.info("percentile denoise start")
-            valid = (depth >= 0.1) & (mask > 0)
+            valid = (depth >= 0.01) & (mask > 0)
             thres = np.percentile(depth[valid], percentile)
             depth[depth >= thres] = 0
             logging.info("percentile denoise done")
@@ -324,7 +324,7 @@ def run_one_video_tracking(
             mask = cv2.erode(mask.astype(np.uint8), kernel)
 
         zfar = cfg_bundletrack["depth_processing"].get("zfar", np.inf)
-        valid = (depth >= 0.1) & (depth <= zfar) & (mask > 0)
+        valid = (depth >= 0.01) & (depth <= zfar) & (mask > 0)
         if valid.sum() == 0:
             print(
                 f"[run_tracking.py] skip frame {reader.id_strs[i]}: empty masked depth (zfar={zfar})"

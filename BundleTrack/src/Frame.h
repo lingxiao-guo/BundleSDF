@@ -145,7 +145,7 @@ __inline__ float computeCovisibility(const std::shared_ptr<Frame> &fA, const std
   {
     for (int w=fA->_roi(0); w<fA->_roi(1); w+=stride)
     {
-      if (fA->_depth.at<float>(h,w)<0.1) continue;
+      if (fA->_depth.at<float>(h,w)<0.01) continue;
       auto pt = (*fA->_cloud)(w,h);
       if (!Utils::isPclPointNormalValid(pt)) continue;
       total++;

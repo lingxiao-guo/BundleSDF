@@ -46,7 +46,7 @@ def compute_scene_bounds_worker(color_file,K,glcam_in_world,use_mask,rgb=None,de
     rgb = np.array(Image.open(color_file))[...,:3]
     depth = cv2.imread(depth_file,-1)/1e3
   xyz_map = depth2xyzmap(depth,K)
-  valid = depth>=0.1
+  valid = depth>=0.01
   if use_mask:
     if mask is None:
       mask = cv2.imread(mask_file,-1)

@@ -367,7 +367,7 @@ void SiftManager::rejectFeatures(std::shared_ptr<Frame> frame)
     int u = std::round(uv.x);
     int v = std::round(uv.y);
     if (!Utils::isPixelInsideImage(H, W,u,v)) continue;
-    if (frame->_depth.at<float>(v,u)<0.1) continue;
+    if (frame->_depth.at<float>(v,u)<0.01) continue;
     // if (Utils::isPclPointNormalValid(pt))
     // {
     //   Eigen::Vector3f normal(pt.normal_x, pt.normal_y, pt.normal_z);
@@ -738,7 +738,7 @@ void SiftManager::pruneMatches(std::shared_ptr<Frame> frameA, std::shared_ptr<Fr
       if (!Utils::isPixelInsideImage(H, W, uA, vA) || !Utils::isPixelInsideImage(H, W, uB, vB)) continue;
       const auto &ptA = (*frameA->_cloud)(uA, vA);
       const auto &ptB = (*frameB->_cloud)(uB, vB);
-      if (ptA.z<0.1 || ptB.z<0.1) continue;
+      if (ptA.z<0.01 || ptB.z<0.01) continue;
       auto PA_world = pcl::transformPointWithNormal(ptA, frameA->_pose_in_model);
       auto PB_world = pcl::transformPointWithNormal(ptB, frameB->_pose_in_model);
       float dist = pcl::geometry::distance(PA_world, PB_world);
@@ -1342,7 +1342,7 @@ void SiftManager::runRansacBetween(std::shared_ptr<Frame> frameA, std::shared_pt
   for (int i=0;i<frameA->_cloud->points.size();i++)
   {
     const auto &pt = frameA->_cloud->points[i];
-    if (pt.z>=0.1)
+    if (pt.z>=0.01)
     {
       Eigen::Vector3f pt_eigen(pt.x, pt.y, pt.z);
       for (int ii=0;ii<3;ii++)
@@ -1557,7 +1557,7 @@ Correspondence SiftManager::makeCorrespondence(float uA_, float vA_, float uB_, 
   int vB = std::round(vB_);
   const auto &ptA = (*fA->_cloud)(uA,vA);
   const auto &ptB = (*fB->_cloud)(uB,vB);
-  if (ptA.z<=0.1 || ptB.z<=0.1)
+  if (ptA.z<=0.01 || ptB.z<=0.01)
   {
     Correspondence corres;
     corres._isinlier = false;
@@ -2109,7 +2109,7 @@ void Lfnet::warpAndDetectFeature(std::shared_ptr<Frame> frame, const Eigen::Matr
       new_transform.setIdentity();
       Eigen::Vector3f p(w,h,1);
       const float z = depth.at<float>(h,w);
-      if (z<=0.1) continue;
+      if (z<=0.01) continue;
       new_transform = K * cur_in_init.block(0,0,3,3) * z * K.inverse();
       p = new_transform * p;
       for (int row=0;row<3;row++)
@@ -2311,7 +2311,7 @@ void DeepOpticalFlow::findCorresbyNN(std::shared_ptr<Frame> frameA, std::shared_
     if (!Utils::isPixelInsideImage(H, W,uA,vA) || !Utils::isPixelInsideImage(H, W,uB,vB)) continue;
     const auto &ptA = frameA->_cloud->at(std::round(uA),std::round(vA));
     const auto &ptB = frameB->_cloud->at(std::round(uB),std::round(vB));
-    if (ptA.z<=0.1 || ptB.z<=0.1) continue;
+    if (ptA.z<=0.01 || ptB.z<=0.01) continue;
     _matches[{frameA,frameB}].push_back(Correspondence(uA,vA,uB,vB,ptA,ptB,true));
   }
 
@@ -2846,13 +2846,13 @@ void SceneFlow::findCorresbyNN(std::shared_ptr<Frame> frameA, std::shared_ptr<Fr
   {
     for (int w=0;w<W;w++)
     {
-      if (frameA->_fg_mask.at<uchar>(h,w)>0 && frameA->_depth.at<float>(h,w)>=0.1)
+      if (frameA->_fg_mask.at<uchar>(h,w)>0 && frameA->_depth.at<float>(h,w)>=0.01)
       {
         const auto &P = (*frameA->_cloud)(w,h);
         cloudA.block(cntA,0,1,3)<<P.x, P.y, P.z;
         cntA++;
       }
-      if (frameB->_fg_mask.at<uchar>(h,w)>0 && frameB->_depth.at<float>(h,w)>=0.1)
+      if (frameB->_fg_mask.at<uchar>(h,w)>0 && frameB->_depth.at<float>(h,w)>=0.01)
       {
         const auto &P = (*frameB->_cloud)(w,h);
         cloudB_pcl->points.push_back(P);

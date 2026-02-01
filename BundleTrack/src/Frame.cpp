@@ -127,7 +127,7 @@ void Frame::init()
   if (Frame::model_dimensions==Eigen::Vector3f::Zero())  //Measure model dimensions
   {
     PointCloudRGBNormal::Ptr cloud_world(new PointCloudRGBNormal);
-    Utils::passFilterPointCloud(_cloud, cloud_world, "z", 0.1, (*yml)["depth_processing"]["zfar"].as<float>());
+    Utils::passFilterPointCloud(_cloud, cloud_world, "z", 0.01, (*yml)["depth_processing"]["zfar"].as<float>());
     pcl::transformPointCloudWithNormals(*cloud_world, *cloud_world, _pose_in_model);
     pcl::PointXYZRGBNormal min_pt, max_pt;
     pcl::getMinMax3D(*cloud_world, min_pt, max_pt);
@@ -153,7 +153,7 @@ void Frame::setNewInitCoordinate()
     for (int h=0;h<_H;h++)
     {
       const auto &pt = (*_cloud)(w,h);
-      if (pt.z>0.1 && _fg_mask.at<uchar>(h,w)>0)
+      if (pt.z>0.01 && _fg_mask.at<uchar>(h,w)>0)
       {
         cloud->points.push_back(pt);
       }
@@ -208,7 +208,7 @@ void Frame::updateNormalGPU()
     for (int w=0;w<_W;w++)
     {
       const auto &pt = (*_cloud)(w,h);
-      if (pt.z>0.1)
+      if (pt.z>0.01)
       {
         normal_array[h*_W+w] = make_float4(pt.normal_x, pt.normal_y, pt.normal_z, 0);
       }
@@ -299,7 +299,7 @@ void Frame::depthToCloudAndNormals()
       const int id = h*_W + w;
       const auto &xyz = xyz_map[id];
       auto &pt = (*_cloud)(w,h);
-      if (xyz.z<0.1)
+      if (xyz.z<0.01)
       {
         pt.x = 0;
         pt.y = 0;
@@ -338,7 +338,7 @@ void Frame::pointCloudDenoise()
 {
   const auto &debug_dir = (*yml)["debug_dir"].as<std::string>();
   Utils::downsamplePointCloud(_cloud, _cloud_down, 0.005);
-  Utils::passFilterPointCloud(_cloud_down,_cloud_down,"z",0.1, (*yml)["depth_processing"]["zfar"].as<float>());
+  Utils::passFilterPointCloud(_cloud_down,_cloud_down,"z",0.01, (*yml)["depth_processing"]["zfar"].as<float>());
   SPDLOG("_cloud_down# {}",_cloud_down->points.size());
   if ((*yml)["SPDLOG"].as<int>()>=3)
   {
@@ -361,7 +361,7 @@ void Frame::pointCloudDenoise()
   for (int i=0;i<_cloud->points.size();i++)
   {
     const auto &pt = _cloud->points[i];
-    if (pt.z<0.1) continue;
+    if (pt.z<0.01) continue;
     std::vector<int> ids;
     std::vector<float> sq_dists;
     tree->nearestKSearch(pt, 1, ids, sq_dists);
@@ -457,7 +457,7 @@ int Frame::countValidPoints()
   {
     for (int w=_roi(0);w<_roi(1);w++)
     {
-      if (_depth.at<float>(h,w)>=0.1) cnt++;
+      if (_depth.at<float>(h,w)>=0.01) cnt++;
     }
   }
   return cnt;
@@ -470,4 +470,3 @@ bool Frame::operator < (const Frame &other)
   if (_id<other._id) return true;
   return false;
 }
-

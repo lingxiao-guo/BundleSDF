@@ -105,7 +105,7 @@ CUDASolverBundling::CUDASolverBundling(unsigned int maxNumberOfImages, unsigned 
 	m_defaultParams.icp_pose_rot_thres = (*yml)["bundle"]["icp_pose_rot_thres"].as<float>()/180.0*M_PI;
 	m_defaultParams.denseColorThresh = 0.1;
 	m_defaultParams.denseColorGradientMin = 0.005;
-	m_defaultParams.denseDepthMin = 0.1;
+	m_defaultParams.denseDepthMin = 0.01;
 	m_defaultParams.denseDepthMax = 9999;
 	m_defaultParams.denseOverlapCheckSubsampleFactor = 1;
 

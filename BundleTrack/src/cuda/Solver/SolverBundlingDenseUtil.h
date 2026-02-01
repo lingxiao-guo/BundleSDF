@@ -146,7 +146,7 @@ __inline__ __device__ bool findDenseCorrNearestNeighbor3D(unsigned int idx, unsi
 				{
 					if (h<0 || h>=imageHeight || w<0 || w>=imageWidth) continue;
 					float4 target_point = tgtCamPos[h*imageWidth+w];
-					if (target_point.z<0.1) continue;
+					if (target_point.z<0.01) continue;
 					float3 target_normal = make_float3(tgtNormals[h*imageWidth+w]);
 					const float dist = length(make_float3(target_point.x,target_point.y,target_point.z)-camPosSrcToTgt);
 					if (dist<=distThresh)
@@ -205,7 +205,7 @@ __inline__ __device__ bool findDenseCorrNearestNeighbor3D(unsigned int idx, unsi
 				{
 					if (h<0 || h>=imageHeight || w<0 || w>=imageWidth) continue;
 					float4 target_point = tgtCamPos[h*imageWidth+w];
-					if (target_point.z<0.1) continue;
+					if (target_point.z<0.01) continue;
 					float3 target_normal = make_float3(tgtNormals[h*imageWidth+w]);
 					const float dist = length(make_float3(target_point.x,target_point.y,target_point.z)-camPosSrcToTgt);
 					if (dist<=distThresh)

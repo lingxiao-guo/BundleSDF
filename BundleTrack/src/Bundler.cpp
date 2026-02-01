@@ -1019,7 +1019,7 @@ void Bundler::saveNewframeResult()
       for (int w=0;w<_newframe->_W;w++)
       {
         Eigen::Vector3f n(Eigen::Vector3f::Zero());
-        if (_newframe->_depth.at<float>(h,w)>=0.1)
+        if (_newframe->_depth.at<float>(h,w)>=0.01)
         {
           const auto &pt = (*_newframe->_cloud)(w,h);
           n << pt.normal_x, pt.normal_y, pt.normal_z;
@@ -1046,7 +1046,7 @@ void Bundler::saveNewframeResult()
       {
         for (int w=0;w<W;w++)
         {
-          if (_newframe->_depth.at<float>(h,w)<0.1) continue;
+          if (_newframe->_depth.at<float>(h,w)<0.01) continue;
           depth_vis.at<uchar>(h,w) = 1.0/_newframe->_depth.at<float>(h,w) / 10 * 255;
         }
       }
@@ -1246,7 +1246,7 @@ void Bundler::runNerf(std::vector<std::shared_ptr<Frame>> &frames)
     for (int w=0;w<last_frame->_W;w++)
     {
       Eigen::Vector3f n(Eigen::Vector3f::Zero());
-      if (last_frame->_depth.at<float>(h,w)>=0.1)
+      if (last_frame->_depth.at<float>(h,w)>=0.01)
       {
         const auto &pt = (*last_frame->_cloud)(w,h);
         n << pt.normal_x, pt.normal_y, pt.normal_z;

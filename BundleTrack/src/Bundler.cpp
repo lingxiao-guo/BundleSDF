@@ -1099,7 +1099,7 @@ void Bundler::saveNewframeResult()
     PointCloudRGBNormal::Ptr cloud_raw_depth(new PointCloudRGBNormal);
     Utils::convert3dOrganizedRGB(_newframe->_depth_raw, _newframe->_color_raw, _newframe->_K, cloud_raw_depth);
     Utils::downsamplePointCloud(cloud_raw_depth,cloud_raw_depth,0.003);
-    Utils::passFilterPointCloud(cloud_raw_depth,cloud_raw_depth,"z",0.1,(*yml)["depth_processing"]["zfar"].as<float>());
+    Utils::passFilterPointCloud(cloud_raw_depth,cloud_raw_depth,"z",0.01,(*yml)["depth_processing"]["zfar"].as<float>());
     pcl::io::savePLYFile(out_dir+"cloud_raw_depth.ply",*cloud_raw_depth);
 
     PointCloudRGBNormal::Ptr cloud_world_gt(new PointCloudRGBNormal);

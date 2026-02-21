@@ -9,6 +9,7 @@
 
 import argparse
 import os, sys
+import re
 
 code_dir_run_custom = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(code_dir_run_custom)
@@ -20,6 +21,32 @@ print(f"code_dir resolved to: {code_dir_run_custom}")
 config_path = f"{code_dir_run_custom}/BundleTrack/config_ho3d.yml"
 print(f"Looking for config at: {config_path}")
 print(f"Config file exists: {os.path.exists(config_path)}")
+
+
+def _extract_frame_idx(id_str):
+    match = re.search(r"(\d+)$", id_str)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _detect_discrete_timeline(reader, jump_threshold=50):
+    frame_ids = [_extract_frame_idx(id_str) for id_str in reader.id_strs]
+    frame_ids = [x for x in frame_ids if x is not None]
+    if len(frame_ids) < 2:
+        return False, None
+    gaps = [frame_ids[i] - frame_ids[i - 1] for i in range(1, len(frame_ids))]
+    max_gap = int(max(gaps))
+    is_discrete = max_gap > jump_threshold
+    return is_discrete, max_gap
+
+
+def _relax_non_neighbor_constraints(cfg_bundletrack):
+    # Keep neighbor thresholds unchanged; only relax non-neighbor gating.
+    cfg_bundletrack["feature_corres"]["max_dist_no_neighbor"] = 999
+    cfg_bundletrack["feature_corres"]["max_normal_no_neighbor"] = 180
+    cfg_bundletrack["ransac"]["max_trans_no_neighbor"] = 999
+    cfg_bundletrack["ransac"]["max_rot_no_neighbor"] = 180
 
 
 def run_one_video(
@@ -57,6 +84,20 @@ def run_one_video(
     cfg_bundletrack["ransac"]["max_rot_no_neighbor"] = 10
     cfg_bundletrack["p2p"]["max_dist"] = 0.02
     cfg_bundletrack["p2p"]["max_normal_angle"] = 45
+    # Note: specifying a shorter_side will downsample the images such that the shorter
+    # side of the image has the specified number of pixels.
+    # reader = YcbineoatReader(video_dir=video_dir, shorter_side=480)
+    reader = YcbineoatReader(video_dir=video_dir)
+    is_discrete, max_gap = _detect_discrete_timeline(reader)
+    if is_discrete:
+        _relax_non_neighbor_constraints(cfg_bundletrack)
+        print(
+            f"[run_custom.py] detected discrete timeline (max frame-id gap={max_gap}); "
+            "relaxing non-neighbor constraints"
+        )
+    else:
+        print("[run_custom.py] no large frame-id gaps detected; using default tight constraints")
+
     cfg_track_dir = f"{out_folder}/config_bundletrack.yml"
     yaml.dump(cfg_bundletrack, open(cfg_track_dir, "w"))
     cfg_nerf = yaml.load(open(f"{code_dir_run_custom}/config.yml", "r"))
@@ -83,10 +124,6 @@ def run_one_video(
         start_nerf_keyframes=5,
         use_gui=use_gui,
     )
-    # Note: specifying a shorter_side will downsample the images such that the shorter
-    # side of the image has the specified number of pixels.
-    # reader = YcbineoatReader(video_dir=video_dir, shorter_side=480)
-    reader = YcbineoatReader(video_dir=video_dir)
     for i in range(0, len(reader.color_files), 1):
         color_file = reader.color_files[i]
         color = cv2.imread(color_file)[..., :3]

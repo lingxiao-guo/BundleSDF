@@ -1693,7 +1693,7 @@ class NerfRunner:
     print(f"Texture image stats before interpolation: min={tex_image.min()}, max={tex_image.max()}, mean={tex_image.mean()}, std={tex_image.std()}")
     print("Increase the scale factor if the texture is too dark.")
 
-    scale_factor = 1.  # Adjust this factor to control brightness (e.g. 2)
+    scale_factor = 2.  # Adjust this factor to control brightness (e.g. 2)
     tex_image = tex_image * scale_factor
 
     # Interpolation for missing vertices (after normalization)

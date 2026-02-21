@@ -71,7 +71,7 @@ RUN cd / && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-L
     /opt/conda/bin/conda create -n py38 python=3.8
 
 
-ENV PATH $PATH:/opt/conda/envs/py38/bin
+ENV PATH=$PATH:/opt/conda/envs/py38/bin
 
 
 RUN conda init bash &&\
@@ -88,8 +88,8 @@ RUN conda init bash &&\
 RUN cd / && git clone --recursive https://github.com/NVIDIAGameWorks/kaolin
 
 
-ENV CUDA_HOME /usr/local/cuda
-ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
+ENV CUDA_HOME=/usr/local/cuda
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64
 ENV OPENCV_IO_ENABLE_OPENEXR=1
 
 

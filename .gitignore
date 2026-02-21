@@ -22,6 +22,8 @@ sdist/
 var/
 wheels/
 wandb/
+data/
+outputs/
 *.blend1
 *.tar.*
 *.zip

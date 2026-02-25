@@ -305,12 +305,14 @@ def run_nerf(
         # cfg_nerf['sampled_frame_ids'] = np.arange(len(rgbs_all))
 
         if SPDLOG >= 2:
+            pose_log_dir = f"{debug_dir}/{frame_id}"
+            os.makedirs(pose_log_dir, exist_ok=True)
             np.savetxt(
                 f"{cfg_nerf['save_dir']}/trainval_poses.txt",
                 glcam_in_obs.reshape(-1, 4),
             )
             np.savetxt(
-                f"{debug_dir}/{frame_id}/poses_before_nerf.txt",
+                f"{pose_log_dir}/poses_before_nerf.txt",
                 np.array(cam_in_obs).reshape(-1, 4),
             )
 
@@ -394,7 +396,9 @@ def run_nerf(
 
         ####### Log
         if SPDLOG >= 2:
-            os.system(f"cp -r {cfg_nerf['save_dir']}/image_step_*.png  {out_dir}/")
+            image_steps = sorted(glob.glob(f"{cfg_nerf['save_dir']}/image_step_*.png"))
+            for im_file in image_steps:
+                shutil.copy(im_file, out_dir)
             with open(f"{out_dir}/config.yml", "w") as ff:
                 tmp = copy.deepcopy(cfg_nerf)
                 for k in tmp.keys():
@@ -402,8 +406,10 @@ def run_nerf(
                         tmp[k] = tmp[k].tolist()
                 yaml.dump(tmp, ff)
             shutil.copy(f"{out_dir}/config.yml", f"{cfg_nerf['save_dir']}/")
+            pose_log_dir = f"{debug_dir}/{frame_id}"
+            os.makedirs(pose_log_dir, exist_ok=True)
             np.savetxt(
-                f"{debug_dir}/{frame_id}/poses_after_nerf.txt",
+                f"{pose_log_dir}/poses_after_nerf.txt",
                 np.array(optimized_cvcam_in_obs).reshape(-1, 4),
             )
             mesh.export(f"{cfg_nerf['save_dir']}/mesh_real_world.obj")
@@ -1036,7 +1042,11 @@ class BundleSdf:
         )
 
         ####### Log
-        os.system(f"cp -r {self.cfg_nerf['save_dir']}/image_step_*.png  {out_dir}/")
+        image_steps = sorted(
+            glob.glob(f"{self.cfg_nerf['save_dir']}/image_step_*.png")
+        )
+        for im_file in image_steps:
+            shutil.copy(im_file, out_dir)
         with open(f"{out_dir}/config.yml", "w") as ff:
             tmp = copy.deepcopy(self.cfg_nerf)
             for k in tmp.keys():
@@ -1050,8 +1060,11 @@ class BundleSdf:
 
         torch.cuda.empty_cache()
 
+        log_frame_id = frame_ids[-1] if len(frame_ids) > 0 else "final"
+        pose_log_dir = f"{self.debug_dir}/{log_frame_id}"
+        os.makedirs(pose_log_dir, exist_ok=True)
         np.savetxt(
-            f"{self.debug_dir}/{frame_id}/poses_after_nerf.txt",
+            f"{pose_log_dir}/poses_after_nerf.txt",
             np.array(optimized_cvcam_in_obs).reshape(-1, 4),
         )
 

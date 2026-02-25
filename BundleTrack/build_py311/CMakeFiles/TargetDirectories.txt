@@ -1,0 +1,5 @@
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311/CMakeFiles/MY_CUDA_LIB.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311/CMakeFiles/BundleTrack.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311/CMakeFiles/my_cpp.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311/CMakeFiles/edit_cache.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311/CMakeFiles/rebuild_cache.dir

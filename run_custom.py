@@ -9,6 +9,7 @@
 
 import argparse
 import os, sys
+import shutil
 
 code_dir_run_custom = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(code_dir_run_custom)
@@ -21,6 +22,92 @@ config_path = f"{code_dir_run_custom}/BundleTrack/config_ho3d.yml"
 print(f"Looking for config at: {config_path}")
 print(f"Config file exists: {os.path.exists(config_path)}")
 
+DEFAULT_SYN_BASE = (
+    "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/instantmesh"
+)
+DEFAULT_SYN_RGB_DIR = f"{DEFAULT_SYN_BASE}/rgb"
+DEFAULT_SYN_DEPTH_DIR = f"{DEFAULT_SYN_BASE}/depth"
+DEFAULT_SYN_POSE_DIR = f"{DEFAULT_SYN_BASE}/ob_in_cam"
+
+
+def prepare_syn_rgbd_for_global_refine(
+    out_folder,
+    syn_rgb_dir,
+    syn_depth_dir,
+    syn_pose_dir,
+    syn_prefix="syn_",
+):
+    out_folder = os.path.abspath(out_folder)
+    color_dir = f"{out_folder}/color_segmented"
+    depth_dir = f"{out_folder}/depth_filtered"
+    mask_dir = f"{out_folder}/mask"
+    pose_dir = f"{out_folder}/ob_in_cam"
+
+    # Global refine (without reader) consumes these dirs directly.
+    for d in [color_dir, depth_dir, mask_dir, pose_dir]:
+        if not os.path.exists(d):
+            raise RuntimeError(
+                f"Required directory missing for global refine: {d}. "
+                f"Run tracking first to produce real-frame outputs."
+            )
+
+    syn_rgb_files = sorted(glob.glob(f"{syn_rgb_dir}/*.png"))
+    syn_depth_files = sorted(glob.glob(f"{syn_depth_dir}/*.png"))
+    syn_pose_files = sorted(glob.glob(f"{syn_pose_dir}/*.txt"))
+    if len(syn_rgb_files) == 0:
+        raise RuntimeError(f"No synthetic RGB files found in {syn_rgb_dir}")
+    if len(syn_depth_files) == 0:
+        raise RuntimeError(f"No synthetic depth files found in {syn_depth_dir}")
+    if len(syn_pose_files) == 0:
+        raise RuntimeError(f"No synthetic pose files found in {syn_pose_dir}")
+
+    rgb_ids = {os.path.basename(f).replace(".png", "") for f in syn_rgb_files}
+    depth_ids = {os.path.basename(f).replace(".png", "") for f in syn_depth_files}
+    pose_ids = {os.path.basename(f).replace(".txt", "") for f in syn_pose_files}
+    common_ids = sorted(rgb_ids & depth_ids & pose_ids)
+    if len(common_ids) == 0:
+        raise RuntimeError(
+            "No common frame ids across synthetic rgb/depth/pose directories."
+        )
+
+    # Remove stale synthetic files from previous runs (real frames are untouched).
+    for d, ext in [(color_dir, "png"), (depth_dir, "png"), (mask_dir, "png"), (pose_dir, "txt")]:
+        for f in glob.glob(f"{d}/{syn_prefix}*.{ext}"):
+            os.remove(f)
+
+    added = 0
+    for fid in common_ids:
+        out_id = f"{syn_prefix}{fid}"
+        src_rgb = f"{syn_rgb_dir}/{fid}.png"
+        src_depth = f"{syn_depth_dir}/{fid}.png"
+        src_pose = f"{syn_pose_dir}/{fid}.txt"
+        dst_rgb = f"{color_dir}/{out_id}.png"
+        dst_depth = f"{depth_dir}/{out_id}.png"
+        dst_mask = f"{mask_dir}/{out_id}.png"
+        dst_pose = f"{pose_dir}/{out_id}.txt"
+
+        shutil.copy2(src_rgb, dst_rgb)
+
+        depth = cv2.imread(src_depth, -1)
+        if depth is None:
+            raise RuntimeError(f"Failed to read synthetic depth: {src_depth}")
+        if depth.dtype != np.uint16:
+            depth = np.clip(depth, 0, 65535).astype(np.uint16)
+        cv2.imwrite(dst_depth, depth)
+
+        syn_mask = (depth > 0).astype(np.uint8) * 255
+        cv2.imwrite(dst_mask, syn_mask)
+
+        ob_in_cam = np.loadtxt(src_pose).reshape(4, 4)
+        np.savetxt(dst_pose, ob_in_cam, fmt="%.8f")
+        added += 1
+
+    print(
+        f"[run_custom.py] Added {added} synthetic frames for global refine "
+        f"using saved poses ({syn_prefix}* ids)."
+    )
+    return added
+
 
 def run_one_video(
     video_dir="/home/bowen/debug/2022-11-18-15-10-24_milk",
@@ -29,6 +116,11 @@ def run_one_video(
     use_gui=False,
     debug_level=2,
     interpolate_missing_vertices=False,
+    use_syn_rgbd=0,
+    syn_rgb_dir=DEFAULT_SYN_RGB_DIR,
+    syn_depth_dir=DEFAULT_SYN_DEPTH_DIR,
+    syn_pose_dir=DEFAULT_SYN_POSE_DIR,
+    syn_prefix="syn_",
 ):
     set_seed(0)
     os.system(f"rm -rf {out_folder} && mkdir -p {out_folder}")
@@ -146,6 +238,11 @@ def run_one_video(
         video_dir=video_dir,
         out_folder=out_folder,
         interpolate_missing_vertices=interpolate_missing_vertices,
+        use_syn_rgbd=use_syn_rgbd,
+        syn_rgb_dir=syn_rgb_dir,
+        syn_depth_dir=syn_depth_dir,
+        syn_pose_dir=syn_pose_dir,
+        syn_prefix=syn_prefix,
     )
 
 
@@ -153,6 +250,11 @@ def run_one_video_global_nerf(
     video_dir,
     out_folder="/home/bowen/debug/bundlesdf_scan_coffee_415",
     interpolate_missing_vertices=False,
+    use_syn_rgbd=0,
+    syn_rgb_dir=DEFAULT_SYN_RGB_DIR,
+    syn_depth_dir=DEFAULT_SYN_DEPTH_DIR,
+    syn_pose_dir=DEFAULT_SYN_POSE_DIR,
+    syn_prefix="syn_",
 ):
     set_seed(0)
     out_folder += "/"  #!NOTE there has to be a / in the end
@@ -184,7 +286,19 @@ def run_one_video_global_nerf(
     os.makedirs(cfg_nerf["datadir"], exist_ok=True)
     cfg_nerf_dir = f"{cfg_nerf['datadir']}/config.yml"
     yaml.dump(cfg_nerf, open(cfg_nerf_dir, "w"))
+
     reader = YcbineoatReader(video_dir=video_dir, downscale=1)
+    if use_syn_rgbd:
+        prepare_syn_rgbd_for_global_refine(
+            out_folder=out_folder,
+            syn_rgb_dir=syn_rgb_dir,
+            syn_depth_dir=syn_depth_dir,
+            syn_pose_dir=syn_pose_dir,
+            syn_prefix=syn_prefix,
+        )
+        # Use saved outputs directly, so synthetic frames use provided ob_in_cam poses.
+        reader = None
+
     tracker = BundleSdf(
         cfg_track_dir=cfg_track_dir, cfg_nerf_dir=cfg_nerf_dir, start_nerf_keyframes=5
     )
@@ -293,6 +407,21 @@ if __name__ == "__main__":
         default=0,
         help="If specified, interpolate missing vertices in the mesh.",
     )
+    parser.add_argument(
+        "--use_syn_rgbd",
+        type=int,
+        default=0,
+        help="If 1, append synthetic RGB-D + saved ob_in_cam for global NeRF/SDF refine.",
+    )
+    parser.add_argument("--syn_rgb_dir", type=str, default=DEFAULT_SYN_RGB_DIR)
+    parser.add_argument("--syn_depth_dir", type=str, default=DEFAULT_SYN_DEPTH_DIR)
+    parser.add_argument("--syn_pose_dir", type=str, default=DEFAULT_SYN_POSE_DIR)
+    parser.add_argument(
+        "--syn_prefix",
+        type=str,
+        default="syn_",
+        help="Prefix for injected synthetic frame ids in out_folder.",
+    )
     args = parser.parse_args()
     if args.mode == "run_video":
         run_one_video(
@@ -302,12 +431,22 @@ if __name__ == "__main__":
             use_gui=args.use_gui,
             debug_level=args.debug_level,
             interpolate_missing_vertices=args.interpolate_missing_vertices,
+            use_syn_rgbd=args.use_syn_rgbd,
+            syn_rgb_dir=args.syn_rgb_dir,
+            syn_depth_dir=args.syn_depth_dir,
+            syn_pose_dir=args.syn_pose_dir,
+            syn_prefix=args.syn_prefix,
         )
     elif args.mode == "global_refine":
         run_one_video_global_nerf(
             video_dir=args.video_dir,
             out_folder=args.out_folder,
             interpolate_missing_vertices=args.interpolate_missing_vertices,
+            use_syn_rgbd=args.use_syn_rgbd,
+            syn_rgb_dir=args.syn_rgb_dir,
+            syn_depth_dir=args.syn_depth_dir,
+            syn_pose_dir=args.syn_pose_dir,
+            syn_prefix=args.syn_prefix,
         )
     elif args.mode == "draw_pose":
         draw_pose()

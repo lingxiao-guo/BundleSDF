@@ -1,0 +1,5 @@
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311_gcc12/CMakeFiles/MY_CUDA_LIB.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311_gcc12/CMakeFiles/BundleTrack.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311_gcc12/CMakeFiles/my_cpp.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311_gcc12/CMakeFiles/edit_cache.dir
+/home/ubuntu/projects/BundleSDF/BundleTrack/build_py311_gcc12/CMakeFiles/rebuild_cache.dir

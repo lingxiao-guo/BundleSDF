@@ -23,7 +23,7 @@ print(f"Looking for config at: {config_path}")
 print(f"Config file exists: {os.path.exists(config_path)}")
 
 DEFAULT_SYN_BASE = (
-    "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/instantmesh"
+    "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/sam3d"
 )
 DEFAULT_SYN_RGB_DIR = f"{DEFAULT_SYN_BASE}/rgb"
 DEFAULT_SYN_DEPTH_DIR = f"{DEFAULT_SYN_BASE}/depth"

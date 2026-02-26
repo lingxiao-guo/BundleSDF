@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Render synthetic RGB-D from aligned InstantMesh using real camera intrinsics.
+Render synthetic RGB-D from aligned completion mesh (e.g. SAM3D) using real camera intrinsics.
 By default, real RGB-D/mask/pose are used to estimate seen vs unseen mesh areas,
 then viewpoints are selected to prioritize unseen coverage and avoid seen areas.
 
 Default outputs:
-  - /home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/instantmesh/rgb
-  - /home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/instantmesh/depth
+  - /home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/sam3d/rgb
+  - /home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/sam3d/depth
 
 Depth is saved as uint16 PNG in millimeters.
 """
@@ -22,18 +22,18 @@ import open3d as o3d
 import trimesh
 
 
-DEFAULT_INSTANTMESH_DIR = (
-    "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/instantmesh"
+DEFAULT_COMPLETION_DIR = (
+    "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/sam3d"
 )
-DEFAULT_MESH = f"{DEFAULT_INSTANTMESH_DIR}/mesh_aligned.obj"
+DEFAULT_MESH = f"{DEFAULT_COMPLETION_DIR}/mesh_aligned.obj"
 DEFAULT_CAM_K = "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/cam_K.txt"
-DEFAULT_RGB_DIR = f"{DEFAULT_INSTANTMESH_DIR}/rgb"
-DEFAULT_DEPTH_DIR = f"{DEFAULT_INSTANTMESH_DIR}/depth"
-DEFAULT_POSE_DIR = f"{DEFAULT_INSTANTMESH_DIR}/ob_in_cam"
+DEFAULT_RGB_DIR = f"{DEFAULT_COMPLETION_DIR}/rgb"
+DEFAULT_DEPTH_DIR = f"{DEFAULT_COMPLETION_DIR}/depth"
+DEFAULT_POSE_DIR = f"{DEFAULT_COMPLETION_DIR}/ob_in_cam"
 DEFAULT_REAL_DEPTH_DIR = "/home/ubuntu/projects/BundleSDF/data/real_0212_trash/object_2/depth"
 DEFAULT_REAL_MASK_DIR = "/home/ubuntu/projects/BundleSDF/outputs/real_0212_trash/object_2/mask"
 DEFAULT_REAL_POSE_DIR = "/home/ubuntu/projects/BundleSDF/outputs/real_0212_trash/object_2/ob_in_cam"
-DEFAULT_COVERAGE_REPORT = f"{DEFAULT_INSTANTMESH_DIR}/coverage_report.json"
+DEFAULT_COVERAGE_REPORT = f"{DEFAULT_COMPLETION_DIR}/coverage_report.json"
 
 
 def load_mesh(path: str) -> trimesh.Trimesh:
@@ -539,7 +539,7 @@ def estimate_seen_unseen(
 
 def parse_args():
     ap = argparse.ArgumentParser(
-        description="Render synthetic RGB-D from aligned InstantMesh with real cam_K."
+        description="Render synthetic RGB-D from aligned completion mesh with real cam_K."
     )
     ap.add_argument("--mesh", type=str, default=DEFAULT_MESH)
     ap.add_argument("--cam_k", type=str, default=DEFAULT_CAM_K)

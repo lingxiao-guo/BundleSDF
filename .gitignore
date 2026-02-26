@@ -7,6 +7,7 @@ exp/
 # C extensions
 *.so
 BundleTrack/build
+BundleTrack/build_py311_gcc12
 # Distribution / packaging
 .Python
 build/

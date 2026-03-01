@@ -10,10 +10,14 @@ This is a step-1 helper script:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+import numpy as np
+import trimesh
 
 
 DEFAULT_SOURCE_MESH = (
@@ -81,6 +85,15 @@ def parse_args():
         default="",
         help="Optional metrics json. Default: <out_dir>/sam3d_to_real_metrics.json",
     )
+    ap.add_argument(
+        "--axis_json",
+        type=str,
+        default="",
+        help=(
+            "Output source-axis json transformed to real frame. "
+            "Default: <out_dir>/sam3d_aligned_axes.json"
+        ),
+    )
     ap.add_argument("--sample_points", type=int, default=12000)
     ap.add_argument("--max_iter", type=int, default=65)
     ap.add_argument("--trim_quantile", type=float, default=0.90)
@@ -95,6 +108,60 @@ def parse_args():
         help="If 1, write aligned mesh directly back to the source mesh path.",
     )
     return ap.parse_args()
+
+
+def _load_single_mesh(path: str) -> trimesh.Trimesh:
+    mesh = trimesh.load(path, force="mesh")
+    if isinstance(mesh, trimesh.Scene):
+        geoms = [g for g in mesh.geometry.values() if isinstance(g, trimesh.Trimesh)]
+        if len(geoms) == 0:
+            raise RuntimeError(f"No mesh geometry found in scene: {path}")
+        mesh = trimesh.util.concatenate(geoms)
+    if len(mesh.vertices) == 0:
+        raise RuntimeError(f"Empty mesh: {path}")
+    return mesh
+
+
+def _write_axis_json(src_mesh_path: str, transform_txt: str, axis_json_path: str):
+    src_mesh = _load_single_mesh(src_mesh_path)
+    t = np.loadtxt(transform_txt, dtype=np.float64)
+    if t.shape != (4, 4):
+        raise ValueError(f"Expected 4x4 transform at {transform_txt}, got {t.shape}")
+
+    lin = t[:3, :3]
+    trans = t[:3, 3]
+
+    center_local = np.asarray(src_mesh.vertices, dtype=np.float64).mean(axis=0)
+    center_world = lin @ center_local + trans
+
+    # Source mesh canonical axes are local XYZ. Transform and normalize into real frame.
+    axis_dirs_world = []
+    for i in range(3):
+        d = lin @ np.eye(3, dtype=np.float64)[:, i]
+        n = float(np.linalg.norm(d))
+        if n < 1e-12:
+            raise RuntimeError("Degenerate axis under similarity transform.")
+        axis_dirs_world.append((d / n).tolist())
+
+    verts = np.asarray(src_mesh.vertices, dtype=np.float64)
+    mins = verts.min(axis=0)
+    maxs = verts.max(axis=0)
+    extents_local = (maxs - mins).tolist()
+    long_axis_index = int(np.argmax(maxs - mins))
+
+    axis_data = {
+        "source_mesh": str(Path(src_mesh_path).resolve()),
+        "transform_txt": str(Path(transform_txt).resolve()),
+        "axis_definition": "transformed_source_xyz",
+        "center_local": center_local.tolist(),
+        "center_world": center_world.tolist(),
+        "axis_dirs_world": axis_dirs_world,  # [x_dir, y_dir, z_dir]
+        "axis_extents_local": extents_local,
+        "long_axis_index": long_axis_index,
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(axis_json_path)), exist_ok=True)
+    with open(axis_json_path, "w") as f:
+        json.dump(axis_data, f, indent=2)
 
 
 def main():
@@ -123,6 +190,11 @@ def main():
         str(Path(args.metrics_json).expanduser().resolve())
         if args.metrics_json
         else os.path.join(out_dir, "sam3d_to_real_metrics.json")
+    )
+    axis_json = (
+        str(Path(args.axis_json).expanduser().resolve())
+        if args.axis_json
+        else os.path.join(out_dir, "sam3d_aligned_axes.json")
     )
 
     register_script = Path(__file__).resolve().parent / "tools" / "register_similarity_obj.py"
@@ -155,6 +227,7 @@ def main():
     ]
     print("Running:", " ".join(cmd))
     subprocess.run(cmd, check=True)
+    _write_axis_json(src_mesh_path=src_mesh, transform_txt=transform_txt, axis_json_path=axis_json)
 
     if int(args.overwrite_source_mesh) == 1:
         if os.path.abspath(out_obj) != os.path.abspath(src_mesh):
@@ -171,6 +244,7 @@ def main():
 
     print(f"Aligned mesh: {out_obj}")
     print(f"Transform: {transform_txt}")
+    print(f"Axis JSON: {axis_json}")
     print(f"Metrics: {metrics_json}")
 
 

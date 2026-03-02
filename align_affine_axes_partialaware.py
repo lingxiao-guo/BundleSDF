@@ -743,10 +743,12 @@ def optimize_axis_affine_partial_aware(
     scale_clamp_max: float,
     secondary_weight: float,
     secondary_shell_quantile: float,
+    free_scale_mask: np.ndarray,
 ) -> Dict[str, object]:
     src_axis = (a.T @ (src_pts - c[None, :]).T).T
     dst_axis = (a.T @ (dst_seen_pts - c[None, :]).T).T
 
+    free_scale_mask = np.asarray(free_scale_mask, dtype=bool).reshape(3)
     scale = np.ones((3,), dtype=np.float64)
     t_axis = np.zeros((3,), dtype=np.float64)
     tree_dst = cKDTree(dst_seen_pts)
@@ -808,21 +810,29 @@ def optimize_axis_affine_partial_aware(
                 v = np.concatenate([v, ds_s[:, k]], axis=0)
                 ww = np.concatenate([ww, float(secondary_weight) * w_s], axis=0)
 
-            su2 = np.sum(ww * u * u)
-            su = np.sum(ww * u)
-            sw = np.sum(ww)
-            suv = np.sum(ww * u * v)
-            sv = np.sum(ww * v)
-            m = np.array([[su2 + scale_reg, su], [su, sw + 1e-12]], dtype=np.float64)
-            b = np.array([suv + scale_reg * 1.0, sv], dtype=np.float64)
-            try:
-                x = np.linalg.solve(m, b)
-            except np.linalg.LinAlgError:
-                x = np.linalg.lstsq(m, b, rcond=None)[0]
-            scale_new[k] = x[0]
-            t_axis_new[k] = x[1]
+            if free_scale_mask[k]:
+                su2 = np.sum(ww * u * u)
+                su = np.sum(ww * u)
+                sw = np.sum(ww)
+                suv = np.sum(ww * u * v)
+                sv = np.sum(ww * v)
+                m = np.array([[su2 + scale_reg, su], [su, sw + 1e-12]], dtype=np.float64)
+                b = np.array([suv + scale_reg * 1.0, sv], dtype=np.float64)
+                try:
+                    x = np.linalg.solve(m, b)
+                except np.linalg.LinAlgError:
+                    x = np.linalg.lstsq(m, b, rcond=None)[0]
+                scale_new[k] = x[0]
+                t_axis_new[k] = x[1]
+            else:
+                # Hard-freeze scale for locked axes; optimize translation only.
+                scale_new[k] = 1.0
+                t_axis_new[k] = float(np.sum(ww * (v - u)) / (np.sum(ww) + 1e-12))
 
-        scale_new = np.clip(scale_new, float(scale_clamp_min), float(scale_clamp_max))
+        scale_new[free_scale_mask] = np.clip(
+            scale_new[free_scale_mask], float(scale_clamp_min), float(scale_clamp_max)
+        )
+        scale_new[~free_scale_mask] = 1.0
 
         residual_new = matched_src_axis * scale_new[None, :] + t_axis_new[None, :] - dst_axis
         r_norm_new = np.linalg.norm(residual_new, axis=1)
@@ -839,7 +849,7 @@ def optimize_axis_affine_partial_aware(
         else:
             robust_secondary = 0.0
 
-        reg = float(scale_reg) * float(np.sum((scale_new - 1.0) ** 2))
+        reg = float(scale_reg) * float(np.sum((scale_new[free_scale_mask] - 1.0) ** 2))
         obj = float(robust_primary + float(secondary_weight) * robust_secondary + reg)
 
         if (robust_primary < best_primary - 1e-12) or (
@@ -904,6 +914,12 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--max_iter", type=int, default=60)
     ap.add_argument("--trim_quantile", type=float, default=0.97)
     ap.add_argument("--huber_delta", type=float, default=0.003)
+    ap.add_argument(
+        "--affine_axis",
+        type=str,
+        default="xyz",
+        help="Axis scales to optimize in aligned-axis frame (subset of x,y,z).",
+    )
     ap.add_argument("--scale_clamp_min", type=float, default=0.6)
     ap.add_argument("--scale_clamp_max", type=float, default=1.6)
     ap.add_argument("--scale_reg", type=float, default=0.03)
@@ -938,9 +954,30 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
+def parse_affine_axis_spec(spec: str) -> Tuple[np.ndarray, str]:
+    axis_to_idx = {"x": 0, "y": 1, "z": 2}
+    cleaned = str(spec).strip().lower().replace(",", "").replace(" ", "")
+    if cleaned == "":
+        raise ValueError("--affine_axis cannot be empty; use a subset of x,y,z (e.g., z or xyz).")
+
+    free = np.zeros((3,), dtype=bool)
+    for ch in cleaned:
+        if ch not in axis_to_idx:
+            raise ValueError(
+                f"Invalid --affine_axis='{spec}'. Only characters x,y,z are allowed."
+            )
+        free[axis_to_idx[ch]] = True
+
+    if not np.any(free):
+        raise ValueError("--affine_axis selected no valid axes.")
+    canonical = "".join([a for a in "xyz" if free[axis_to_idx[a]]])
+    return free, canonical
+
+
 def main() -> None:
     args = parse_args()
     rng = np.random.default_rng(int(args.seed))
+    free_scale_mask, affine_axis_canonical = parse_affine_axis_spec(args.affine_axis)
 
     source_mesh_path = Path(args.source_mesh_aligned).expanduser().resolve()
     real_mesh_path = Path(args.real_mesh).expanduser().resolve()
@@ -1150,6 +1187,7 @@ def main() -> None:
             scale_clamp_max=float(args.scale_clamp_max),
             secondary_weight=float(args.secondary_weight),
             secondary_shell_quantile=float(args.secondary_shell_quantile),
+            free_scale_mask=free_scale_mask,
         )
         twist_search["tested"].append(
             {
@@ -1182,6 +1220,7 @@ def main() -> None:
             scale_clamp_max=float(args.scale_clamp_max),
             secondary_weight=float(args.secondary_weight),
             secondary_shell_quantile=float(args.secondary_shell_quantile),
+            free_scale_mask=free_scale_mask,
         )
         if float(best_final["objective_primary"]) <= float(best_probe_primary):
             best = best_final
@@ -1247,6 +1286,9 @@ def main() -> None:
         "max_iter": int(args.max_iter),
         "trim_quantile": float(args.trim_quantile),
         "huber_delta": float(args.huber_delta),
+        "affine_axis": affine_axis_canonical,
+        "free_scale_mask_xyz": free_scale_mask.astype(int).tolist(),
+        "locked_axes": [ax for ax, keep in zip(["x", "y", "z"], free_scale_mask.tolist()) if not keep],
         "scale_clamp": [float(args.scale_clamp_min), float(args.scale_clamp_max)],
         "scale_reg": float(args.scale_reg),
         "secondary_weight": float(args.secondary_weight),

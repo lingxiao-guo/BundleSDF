@@ -14,7 +14,7 @@ Args:
 EOF
   exit 1
 fi
-
+ 
 TASK_NAME="$1"
 OBJ="$2"
 MODE="${3:-main_color}"

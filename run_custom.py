@@ -130,6 +130,7 @@ def run_one_video(
     )
     cfg_bundletrack["SPDLOG"] = debug_level  # Higher means more logging
     cfg_bundletrack["depth_processing"]["percentile"] = 95
+    cfg_bundletrack["depth_processing"]["zfar"] = 4.0
     cfg_bundletrack["erode_mask"] = 3
     cfg_bundletrack["debug_dir"] = out_folder + "/"
     cfg_bundletrack["bundle"]["max_BA_frames"] = 10  # TODO

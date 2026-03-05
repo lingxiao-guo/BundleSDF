@@ -842,6 +842,12 @@ class BundleSdf:
         self.process_new_frame(frame)
         logging.info(f"processNewFrame done {frame._id_str}")
 
+        if len(self.bundler._keyframes) == 0:
+            logging.warning(
+                f"No keyframes available after processing frame {frame._id_str}; skip NeRF enqueue for this frame."
+            )
+            return
+
         if self.bundler._keyframes[-1] == frame:
             logging.info(f"{frame._id_str} prepare data for nerf")
 

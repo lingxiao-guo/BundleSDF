@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 7 ]]; then
+if [[ $# -lt 2 || $# -gt 8 ]]; then
   cat <<'EOF'
 Usage:
-  bash run_texture_syn_global_refine.sh <TASK_NAME> <OBJ> [MODE] [NUM_RENDERS] [PROFILE] [FREEZE_POSE_OPT] [SYN_EDGE_SHRINK_PX]
+  bash run_texture_syn_global_refine.sh <TASK_NAME> <OBJ> [MODE] [NUM_RENDERS] [PROFILE] [FREEZE_POSE_OPT] [SYN_EDGE_SHRINK_PX] [MESH_OUT_NAME]
 
 Args:
   TASK_NAME    Dataset/task folder name under data/ and outputs/ (e.g. real_0212_trash)
@@ -14,6 +14,7 @@ Args:
   PROFILE      protect_seen | completion_boost (default: protect_seen)
   FREEZE_POSE_OPT   1 to freeze pose updates safely (optimize_poses:1 + lrate_pose:0) in outputs/<task>/<obj>/config_nerf.yml (default: 1)
   SYN_EDGE_SHRINK_PX  Synthetic depth support shrink in pixels (default: 2)
+  MESH_OUT_NAME  Global-refine output mesh filename under outputs/<task>/<obj> (default: textured_mesh.obj)
 
 Examples:
   bash run_texture_syn_global_refine.sh real_0212_trash object_1
@@ -29,6 +30,7 @@ NUM_RENDERS="${4:-64}"
 PROFILE="${5:-protect_seen}"
 FREEZE_POSE_OPT="${6:-1}"
 SYN_EDGE_SHRINK_PX="${7:-2}"
+MESH_OUT_NAME="${8:-textured_mesh.obj}"
 
 if [[ "$MODE" != "main_color" && "$MODE" != "project" ]]; then
   echo "Error: MODE must be 'main_color' or 'project', got: $MODE" >&2
@@ -133,7 +135,7 @@ SYN_PREFIX="syn_affv2_${MODE}_${PROFILE}_"
 
 mkdir -p "$SYN_RGB_DIR" "$SYN_DEPTH_DIR" "$SYN_POSE_DIR"
 
-echo "[config] TASK_NAME=$TASK_NAME OBJ=$OBJ MODE=$MODE NUM_RENDERS=$NUM_RENDERS PROFILE=$PROFILE FREEZE_POSE_OPT=$FREEZE_POSE_OPT SYN_EDGE_SHRINK_PX=$SYN_EDGE_SHRINK_PX"
+echo "[config] TASK_NAME=$TASK_NAME OBJ=$OBJ MODE=$MODE NUM_RENDERS=$NUM_RENDERS PROFILE=$PROFILE FREEZE_POSE_OPT=$FREEZE_POSE_OPT SYN_EDGE_SHRINK_PX=$SYN_EDGE_SHRINK_PX MESH_OUT_NAME=$MESH_OUT_NAME"
 
 echo "[1/5] texture transfer (project + main_color) ..."
 python "$ROOT/texture_transfer_simple.py" \
@@ -258,9 +260,10 @@ python "$ROOT/run_custom.py" \
   --syn_depth_dir "$SYN_DEPTH_DIR" \
   --syn_pose_dir "$SYN_POSE_DIR" \
   --syn_prefix "$SYN_PREFIX" \
+  --mesh_out_name "$MESH_OUT_NAME" \
   --interpolate_missing_vertices 1
 
 echo "Done."
 echo "Task: $TASK_NAME  Object: $OBJ  Mode: $MODE  NumRenders: $NUM_RENDERS  Profile: $PROFILE"
 echo "Synthetic RGBD: $SYN_BASE"
-echo "Refined mesh: $OUT_OBJ/textured_mesh.obj"
+echo "Refined mesh: $OUT_OBJ/$MESH_OUT_NAME"

@@ -121,6 +121,7 @@ def run_one_video(
     syn_depth_dir=DEFAULT_SYN_DEPTH_DIR,
     syn_pose_dir=DEFAULT_SYN_POSE_DIR,
     syn_prefix="syn_",
+    mesh_out_name="textured_mesh.obj",
 ):
     set_seed(0)
     os.system(f"rm -rf {out_folder} && mkdir -p {out_folder}")
@@ -243,6 +244,7 @@ def run_one_video(
         syn_depth_dir=syn_depth_dir,
         syn_pose_dir=syn_pose_dir,
         syn_prefix=syn_prefix,
+        mesh_out_name=mesh_out_name,
     )
 
 
@@ -255,6 +257,7 @@ def run_one_video_global_nerf(
     syn_depth_dir=DEFAULT_SYN_DEPTH_DIR,
     syn_pose_dir=DEFAULT_SYN_POSE_DIR,
     syn_prefix="syn_",
+    mesh_out_name="textured_mesh.obj",
 ):
     set_seed(0)
     out_folder += "/"  #!NOTE there has to be a / in the end
@@ -309,6 +312,7 @@ def run_one_video_global_nerf(
         tex_res=2048,
         use_all_frames=True,
         interpolate_missing_vertices=interpolate_missing_vertices,
+        mesh_out_name=mesh_out_name,
     )
     tracker.on_finish()
     print(f"Done")
@@ -422,6 +426,12 @@ if __name__ == "__main__":
         default="syn_",
         help="Prefix for injected synthetic frame ids in out_folder.",
     )
+    parser.add_argument(
+        "--mesh_out_name",
+        type=str,
+        default="textured_mesh.obj",
+        help="Output mesh filename written under out_folder (global refine result).",
+    )
     args = parser.parse_args()
     if args.mode == "run_video":
         run_one_video(
@@ -436,6 +446,7 @@ if __name__ == "__main__":
             syn_depth_dir=args.syn_depth_dir,
             syn_pose_dir=args.syn_pose_dir,
             syn_prefix=args.syn_prefix,
+            mesh_out_name=args.mesh_out_name,
         )
     elif args.mode == "global_refine":
         run_one_video_global_nerf(
@@ -447,6 +458,7 @@ if __name__ == "__main__":
             syn_depth_dir=args.syn_depth_dir,
             syn_pose_dir=args.syn_pose_dir,
             syn_prefix=args.syn_prefix,
+            mesh_out_name=args.mesh_out_name,
         )
     elif args.mode == "draw_pose":
         draw_pose()

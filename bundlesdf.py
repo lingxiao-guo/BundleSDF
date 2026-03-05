@@ -13,6 +13,10 @@ import matplotlib.pyplot as plt
 
 import os
 import sys
+import shlex
+import shutil
+import tempfile
+from pathlib import Path
 
 code_dir_bundlesdf = os.path.dirname(os.path.realpath(__file__))
 bundle_track_build = os.path.join(code_dir_bundlesdf, "BundleTrack", "build")
@@ -96,6 +100,92 @@ def run_gui(gui_dict, gui_lock):
         time.sleep(0.03)
 
     dpg.destroy_context()
+
+
+def export_obj_with_suffix_assets(mesh: trimesh.Trimesh, out_obj_path: str, suffix: str):
+    """
+    Export OBJ while avoiding material/texture filename collisions.
+    If suffix is empty, fallback to standard export.
+    """
+    out_obj = Path(out_obj_path).resolve()
+    out_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    if not suffix:
+        mesh.export(str(out_obj))
+        return
+
+    map_keys = {
+        "map_ka",
+        "map_kd",
+        "map_ks",
+        "map_d",
+        "map_bump",
+        "bump",
+        "disp",
+        "decal",
+        "norm",
+        "refl",
+    }
+
+    with tempfile.TemporaryDirectory(prefix="bundlesdf_obj_export_") as tmpdir:
+        tmpdir = Path(tmpdir)
+        tmp_obj = tmpdir / out_obj.name
+        mesh.export(str(tmp_obj))
+        if not tmp_obj.exists():
+            raise FileNotFoundError(str(tmp_obj))
+
+        obj_lines = tmp_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
+        mtl_map = {}
+        rewritten = []
+        for line in obj_lines:
+            s = line.strip()
+            if s.lower().startswith("mtllib "):
+                rest = s.split(None, 1)[1].strip()
+                toks = rest.split()
+                new_toks = []
+                for tok in toks:
+                    old_mtl = (tmp_obj.parent / tok).resolve()
+                    old_name = Path(tok).name
+                    stem = Path(old_name).stem
+                    ext = Path(old_name).suffix or ".mtl"
+                    new_name = f"{stem}{suffix}{ext}"
+                    new_toks.append(new_name)
+                    mtl_map[old_mtl] = out_obj.parent / new_name
+                rewritten.append(f"mtllib {' '.join(new_toks)}")
+            else:
+                rewritten.append(line)
+
+        out_obj.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+
+        for old_mtl, new_mtl in mtl_map.items():
+            if not old_mtl.exists():
+                continue
+            lines = old_mtl.read_text(encoding="utf-8", errors="ignore").splitlines()
+            out_lines = []
+            for line in lines:
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    out_lines.append(line)
+                    continue
+                try:
+                    parts = shlex.split(s, comments=False, posix=True)
+                except Exception:
+                    parts = s.split()
+                if len(parts) >= 2 and parts[0].lower() in map_keys:
+                    old_tex_ref = parts[-1]
+                    old_tex = (old_mtl.parent / old_tex_ref).resolve()
+                    tex_name = Path(old_tex_ref).name
+                    tex_stem = Path(tex_name).stem
+                    tex_ext = Path(tex_name).suffix
+                    new_tex_name = f"{tex_stem}{suffix}{tex_ext}"
+                    new_tex = new_mtl.parent / new_tex_name
+                    if old_tex.exists() and old_tex.is_file():
+                        shutil.copy2(old_tex, new_tex)
+                    prefix_tokens = parts[:-1]
+                    out_lines.append(" ".join(prefix_tokens + [new_tex_name]))
+                else:
+                    out_lines.append(line)
+            new_mtl.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
 
 
 def run_nerf(
@@ -864,7 +954,13 @@ class BundleSdf:
                 self.gui_dict["n_keyframe"] = len(self.bundler._keyframes)
 
     def run_global_nerf(
-        self, reader=None, get_texture=False, tex_res=1024, use_all_frames=False, interpolate_missing_vertices=False
+        self,
+        reader=None,
+        get_texture=False,
+        tex_res=1024,
+        use_all_frames=False,
+        interpolate_missing_vertices=False,
+        mesh_out_name="textured_mesh.obj",
     ):
         """
         @reader: data reader, sometimes we want to use the full resolution raw image
@@ -1071,6 +1167,12 @@ class BundleSdf:
         # mesh_files = sorted(glob.glob(f"{self.debug_dir}/final/nerf/step_*_mesh_normalized_space.obj"))
         # mesh = trimesh.load(mesh_files[-1])
 
+        mesh_out_base = os.path.basename(str(mesh_out_name))
+        mesh_out_stem, _mesh_out_ext = os.path.splitext(mesh_out_base)
+        out_suffix = ""
+        if mesh_out_stem.startswith("textured_mesh"):
+            out_suffix = mesh_out_stem[len("textured_mesh") :]
+
         mesh, sigma, query_pts = nerf.extract_mesh(
             voxel_size=self.cfg_nerf["mesh_resolution"], isolevel=0, return_sigma=True
         )
@@ -1092,7 +1194,8 @@ class BundleSdf:
                 largest_size = m.vertices.shape[0]
                 largest = m
         mesh = largest
-        mesh.export(f"{self.debug_dir}/mesh_cleaned.obj")
+        cleaned_name = f"mesh_cleaned{out_suffix}.obj" if out_suffix else "mesh_cleaned.obj"
+        mesh.export(f"{self.debug_dir}/{cleaned_name}")
 
         if get_texture:
             if interpolate_missing_vertices:
@@ -1111,7 +1214,8 @@ class BundleSdf:
             translation=self.cfg_nerf["translation"],
             sc_factor=self.cfg_nerf["sc_factor"],
         )
-        mesh.export(f"{self.debug_dir}/textured_mesh.obj")
+        mesh_out_path = str(Path(self.debug_dir) / mesh_out_base)
+        export_obj_with_suffix_assets(mesh, mesh_out_path, out_suffix)
 
 
 if __name__ == "__main__":

@@ -103,6 +103,48 @@ python run_custom.py --mode draw_pose --out_folder /home/bowen/debug/bundlesdf_2
 
 <img src="./media/milk_jug.gif" height="400">
 
+## One-click reconstruction + align + fuse (real RGBD + SAM3D)
+
+If your data is organized as:
+
+```
+BundleSDF/
+  data/<TASK_NAME>/<OBJECT_NAME>/
+    cam_K.txt
+    rgb/
+    depth/
+    masks/
+    sam3d/mesh.glb
+```
+
+you can run the full pipeline with:
+
+```bash
+bash run_reconstruct_align_fuse.sh <TASK_NAME> <OBJECT_NAME>
+```
+
+Example:
+
+```bash
+bash run_reconstruct_align_fuse.sh real_0212_trash object_1
+```
+
+This script runs:
+1. Real-only reconstruction (`run_custom.py --mode run_video`)
+2. SAM3D-to-real registration (`align_instantmesh_and_real.py`)
+3. Axis-constrained affine refinement (`align_affine_axes_partialaware.py`)
+4. Synthetic fusion/global refine (`run_texture_syn_global_refine.sh`)
+
+Outputs:
+- Real-only mesh: `outputs/<TASK_NAME>/<OBJECT_NAME>/textured_mesh.obj`
+- Fused mesh: `outputs/<TASK_NAME>/<OBJECT_NAME>/textured_mesh_fuse.obj`
+
+You can control affine scaling axes for step 3 via env var (default is `z`):
+
+```bash
+AFFINE_AXIS=xyz bash run_reconstruct_align_fuse.sh real_0212_trash object_1
+```
+
 
 # Run on moving object data
 
